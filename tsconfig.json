@@ -1,0 +1,18 @@
+{
+  // Configuration TypeScript. Les templates Vite en génèrent 3 (références de projet) ;
+  // un seul suffit pour apprendre, c'est plus lisible.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx", // permet d'écrire du JSX sans importer React dans chaque fichier
+    "strict": true, // le mode strict = tout l'intérêt de TS : garde-le toujours activé
+    "noEmit": true, // TS vérifie seulement les types ; c'est Vite qui produit le JS
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "types": ["vite/client"]
+  },
+  "include": ["src", "vite.config.ts"]
+}

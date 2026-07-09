@@ -1,0 +1,13 @@
+/* Tailwind v4 : tout se configure ici, en CSS (plus de tailwind.config.js). */
+@import "tailwindcss";
+
+/* @utility : crée une VRAIE classe Tailwind personnalisée.
+   scrollbar-none masque la barre de défilement tout en gardant
+   le scroll fonctionnel (molette, trackpad, doigt). */
+@utility scrollbar-none {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* vieux Edge */
+  &::-webkit-scrollbar {
+    display: none; /* Chrome / Safari */
+  }
+}
