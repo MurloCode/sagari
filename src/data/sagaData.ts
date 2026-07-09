@@ -31,7 +31,7 @@ export const sagas: Saga[] = [
 ];
 
 export const summaries: ContentSummary[] = [
-  // ---------- STARGATE (85 entrées générées, voir stargateData.ts) ----------
+  // ---------- STARGATE (281 entrées générées, voir stargateData.ts) ----------
   // L'opérateur "spread" (...) déplie un tableau dans un autre.
   ...stargateSummaries,
 
@@ -161,25 +161,6 @@ export const summaries: ContentSummary[] = [
 ];
 
 export const details: Record<string, ContentDetails> = {
-  // ---- Deux fiches épisode d'EXEMPLE (Stargate) : montrent le rendu
-  // final en attendant que TMDb remplisse les 90+ autres automatiquement.
-  "sg1-09x01": {
-    id: "sg1-09x01",
-    synopsis:
-      "Le lieutenant-colonel Cameron Mitchell prend le commandement de SG-1... mais l'équipe s'est dispersée. Pendant ce temps, Vala apporte à Daniel Jackson une tablette ancienne menant à un trésor caché des Anciens sur Terre.",
-    rating: 7.6,
-    posterColor: "#3b5b82",
-    platforms: ["Prime Video"],
-  },
-  "atl-02x02": {
-    id: "atl-02x02",
-    synopsis:
-      "Sur le trajet du retour vers Atlantis, l'équipage du Dédale découvre qu'une intelligence artificielle wraith a infiltré les systèmes du vaisseau.",
-    rating: 7.2,
-    posterColor: "#2d6a63",
-    platforms: ["Prime Video"],
-  },
-
   sw4: {
     id: "sw4",
     synopsis:
