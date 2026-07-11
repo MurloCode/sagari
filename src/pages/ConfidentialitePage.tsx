@@ -1,8 +1,9 @@
 // ---------------------------------------------------------------
 // POLITIQUE DE CONFIDENTIALITÉ (RGPD) — décrit les données RÉELLEMENT
 // traitées par le code actuel (voir supabase/schema.sql, useWatched.ts,
-// AuthContext.tsx). Les points nécessitant une décision de Corentin
-// (durée de conservation, adresse de contact) restent en TodoNotice.
+// AuthContext.tsx). Le seul point encore en TodoNotice (suppression de
+// compte en libre-service) est une fonctionnalité qui reste à construire,
+// pas une simple info manquante.
 // ---------------------------------------------------------------
 import { Link } from "react-router-dom";
 import { TodoNotice } from "../components/TodoNotice";
@@ -87,11 +88,11 @@ export function ConfidentialitePage() {
 
       <section className="space-y-2">
         <h2 className="text-base font-semibold text-slate-100">Durée de conservation</h2>
-        <TodoNotice>
-          durée de conservation des données une fois un compte inactif (ex:
-          suppression automatique après N mois d'inactivité, ou conservation
-          tant que le compte n'est pas supprimé manuellement).
-        </TodoNotice>
+        <p>
+          Tes données sont conservées tant que ton compte existe. Tu peux en
+          demander la suppression à tout moment (voir "Tes droits"
+          ci-dessous).
+        </p>
       </section>
 
       <section className="space-y-2">
