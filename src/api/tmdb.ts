@@ -44,7 +44,9 @@ async function tmdbGet<T>(
 const seriesIdCache = new Map<string, number>();
 const detailsCache = new Map<string, ContentDetails>();
 
-/** Trouve l'id TMDb d'une série à partir de son nom (1 seule fois). */
+/** Trouve l'id TMDb d'une série à partir de son nom (1 seule fois).
+ *  Prend le PREMIER résultat de recherche — voir searchTmdb plus bas
+ *  pour un choix manuel et sans ambiguïté depuis l'admin. */
 async function resolveSeriesId(name: string): Promise<number> {
   const cached = seriesIdCache.get(name);
   if (cached !== undefined) return cached;
@@ -67,11 +69,47 @@ const FILM_QUERIES: Record<string, string> = {
   "film-continuum": "Stargate: Continuum",
 };
 
+/** Détails d'un épisode précis (ou d'une saison entière si `episode`
+ *  est absent) d'une série DONT ON CONNAÎT DÉJÀ l'id TMDb. */
+async function fetchEpisodeOrSeason(
+  tvId: number,
+  season: number,
+  episode?: number
+): Promise<Omit<ContentDetails, "id">> {
+  if (episode !== undefined) {
+    const ep = await tmdbGet<{
+      overview: string;
+      vote_average: number;
+      still_path: string | null;
+    }>(`/tv/${tvId}/season/${season}/episode/${episode}`);
+    return {
+      synopsis: ep.overview || "Pas de synopsis français disponible.",
+      rating: ep.vote_average ? Math.round(ep.vote_average * 10) / 10 : null,
+      posterColor: "#334155",
+      posterUrl: ep.still_path ? IMG + ep.still_path : undefined,
+      platforms: [],
+    };
+  }
+  const s = await tmdbGet<{ overview: string; poster_path: string | null }>(
+    `/tv/${tvId}/season/${season}`
+  );
+  return {
+    synopsis: s.overview || `Intégrale de la saison ${season}.`,
+    rating: null,
+    posterColor: "#334155",
+    posterUrl: s.poster_path ? IMG + s.poster_path : undefined,
+    platforms: [],
+  };
+}
+
 /**
  * Enrichit un contenu via TMDb, selon sa nature :
  *  - épisode  → /tv/{id}/season/{s}/episode/{e}
  *  - saison   → /tv/{id}/season/{s}
  *  - film     → /search/movie
+ * Recherche AUTOMATIQUE (premier résultat) : c'est le chemin emprunté
+ * par la fiche publique quand rien n'a été enrichi à la main dans
+ * l'admin. Voir searchTmdb + fetchTmdbDetailsById pour un choix manuel.
  */
 export async function fetchTmdbDetails(
   summary: Pick<ContentSummary, "id" | "title" | "series" | "season" | "episode">
@@ -80,45 +118,11 @@ export async function fetchTmdbDetails(
   const cached = detailsCache.get(summary.id);
   if (cached) return cached;
 
-  let details: ContentDetails;
+  let details: Omit<ContentDetails, "id">;
 
   if (summary.series && summary.season !== undefined) {
     const tvId = await resolveSeriesId(summary.series);
-
-    if (summary.episode !== undefined) {
-      // ---- UN ÉPISODE PRÉCIS ----
-      const ep = await tmdbGet<{
-        overview: string;
-        vote_average: number;
-        still_path: string | null;
-      }>(`/tv/${tvId}/season/${summary.season}/episode/${summary.episode}`);
-
-      details = {
-        id: summary.id,
-        synopsis: ep.overview || "Pas de synopsis français disponible.",
-        rating: ep.vote_average ? Math.round(ep.vote_average * 10) / 10 : null,
-        posterColor: "#334155",
-        posterUrl: ep.still_path ? IMG + ep.still_path : undefined,
-        platforms: [],
-      };
-    } else {
-      // ---- UNE SAISON ENTIÈRE ----
-      const season = await tmdbGet<{
-        overview: string;
-        poster_path: string | null;
-      }>(`/tv/${tvId}/season/${summary.season}`);
-
-      details = {
-        id: summary.id,
-        synopsis:
-          season.overview ||
-          `Intégrale de la saison ${summary.season} de ${summary.series}.`,
-        rating: null,
-        posterColor: "#334155",
-        posterUrl: season.poster_path ? IMG + season.poster_path : undefined,
-        platforms: [],
-      };
-    }
+    details = await fetchEpisodeOrSeason(tvId, summary.season, summary.episode);
   } else {
     // ---- UN FILM ----
     const query = FILM_QUERIES[summary.id] ?? summary.title;
@@ -134,7 +138,6 @@ export async function fetchTmdbDetails(
     if (!movie) throw new Error(`Film introuvable sur TMDb : ${query}`);
 
     details = {
-      id: summary.id,
       synopsis: movie.overview || "Pas de synopsis français disponible.",
       rating: movie.vote_average
         ? Math.round(movie.vote_average * 10) / 10
@@ -145,6 +148,83 @@ export async function fetchTmdbDetails(
     };
   }
 
-  detailsCache.set(summary.id, details);
-  return details;
+  const full: ContentDetails = { id: summary.id, ...details };
+  detailsCache.set(summary.id, full);
+  return full;
+}
+
+// ---------------------------------------------------------------
+// RECHERCHE MANUELLE (interface d'admin) — plutôt que de deviner via
+// le premier résultat d'une recherche par titre (source d'erreurs en
+// cas d'homonymie), l'admin choisit LUI-MÊME le bon résultat parmi
+// plusieurs candidats affichés (titre + année + affiche). Une fois
+// choisi, l'id TMDb est connu avec certitude pour ce contenu.
+// ---------------------------------------------------------------
+
+export interface TmdbSearchResult {
+  tmdbId: number;
+  title: string;
+  year: number | null;
+  posterUrl: string | null;
+  overview: string;
+  rating: number | null;
+}
+
+interface TmdbRawResult {
+  id: number;
+  title?: string; // présent pour un film
+  name?: string; // présent pour une série
+  release_date?: string; // présent pour un film
+  first_air_date?: string; // présent pour une série
+  overview: string;
+  vote_average: number;
+  poster_path: string | null;
+}
+
+function toSearchResult(kind: "movie" | "tv", raw: TmdbRawResult): TmdbSearchResult {
+  const dateStr = kind === "movie" ? raw.release_date : raw.first_air_date;
+  return {
+    tmdbId: raw.id,
+    title: (kind === "movie" ? raw.title : raw.name) ?? "",
+    year: dateStr ? Number(dateStr.slice(0, 4)) : null,
+    posterUrl: raw.poster_path ? IMG + raw.poster_path : null,
+    overview: raw.overview || "",
+    rating: raw.vote_average ? Math.round(raw.vote_average * 10) / 10 : null,
+  };
+}
+
+/** Recherche TMDb par mot-clé — jusqu'à 6 résultats, à faire choisir à
+ *  l'utilisateur (voir AdminContentFormPage.tsx). */
+export async function searchTmdb(
+  query: string,
+  kind: "movie" | "tv"
+): Promise<TmdbSearchResult[]> {
+  const path = kind === "movie" ? "/search/movie" : "/search/tv";
+  const data = await tmdbGet<{ results: TmdbRawResult[] }>(path, { query });
+  return data.results.slice(0, 6).map((r) => toSearchResult(kind, r));
+}
+
+/**
+ * Détails pour un résultat CONFIRMÉ par l'utilisateur (id TMDb connu —
+ * aucune recherche par nom, donc aucune ambiguïté). `season`/`episode`
+ * optionnels : pour un film ou une série sans saison précisée, les
+ * infos déjà présentes dans le résultat de recherche suffisent
+ * (overview/affiche/note y sont déjà inclus, zéro appel réseau de plus).
+ */
+export async function fetchTmdbDetailsById(
+  kind: "movie" | "tv",
+  fallback: TmdbSearchResult,
+  season?: number,
+  episode?: number
+): Promise<Omit<ContentDetails, "id">> {
+  if (kind === "tv" && season !== undefined) {
+    return fetchEpisodeOrSeason(fallback.tmdbId, season, episode);
+  }
+  return {
+    synopsis: fallback.overview || "Pas de synopsis français disponible.",
+    rating: fallback.rating,
+    posterColor: "#334155",
+    posterUrl: fallback.posterUrl ?? undefined,
+    platforms: [],
+  };
 }

@@ -13,6 +13,12 @@ import {
   updateContent,
   type ContentInput,
 } from "../api/fakeApi";
+import {
+  hasTmdbKey,
+  searchTmdb,
+  fetchTmdbDetailsById,
+  type TmdbSearchResult,
+} from "../api/tmdb";
 import { MEDIA_CONFIG } from "../mediaConfig";
 import { SERIES_PALETTE, seriesColorAt } from "../seriesPalette";
 import { slugify } from "../utils/slugify";
@@ -58,6 +64,15 @@ export function AdminContentFormPage() {
   const [notFound, setNotFound] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Recherche TMDb manuelle : l'admin choisit le bon résultat au lieu de
+  // laisser l'app deviner via le premier résultat d'une recherche par
+  // titre (risque d'homonymie — cf. tmdb.ts).
+  const [tmdbQuery, setTmdbQuery] = useState("");
+  const [tmdbResults, setTmdbResults] = useState<TmdbSearchResult[]>([]);
+  const [isSearchingTmdb, setIsSearchingTmdb] = useState(false);
+  const [tmdbError, setTmdbError] = useState<string | null>(null);
+  const [confirmedTmdb, setConfirmedTmdb] = useState<TmdbSearchResult | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -139,6 +154,47 @@ export function AdminContentFormPage() {
   function handleTitleChange(value: string) {
     setTitle(value);
     if (!isEditing && !idTouched) setId(slugify(value));
+  }
+
+  // TMDb ne couvre que films et séries — pas de recherche pour
+  // livre/bd/comics/jeu-video, cette donnée n'existe pas chez eux.
+  const tmdbKind: "movie" | "tv" | null =
+    type === "film" ? "movie" : type === "serie" || type === "serie-animee" ? "tv" : null;
+
+  async function handleTmdbSearch() {
+    if (!tmdbKind) return;
+    const query = tmdbQuery.trim() || series.trim() || title.trim();
+    if (!query) return;
+    setIsSearchingTmdb(true);
+    setTmdbError(null);
+    setTmdbResults([]);
+    try {
+      setTmdbResults(await searchTmdb(query, tmdbKind));
+    } catch (err) {
+      setTmdbError(err instanceof Error ? err.message : "Erreur inconnue");
+    } finally {
+      setIsSearchingTmdb(false);
+    }
+  }
+
+  async function handleTmdbPick(result: TmdbSearchResult) {
+    if (!tmdbKind) return;
+    setTmdbError(null);
+    try {
+      const details = await fetchTmdbDetailsById(
+        tmdbKind,
+        result,
+        season === "" ? undefined : season,
+        episode === "" ? undefined : episode
+      );
+      setSynopsis(details.synopsis);
+      setRating(details.rating ?? "");
+      setPosterUrl(details.posterUrl ?? "");
+      setConfirmedTmdb(result);
+      setTmdbResults([]);
+    } catch (err) {
+      setTmdbError(err instanceof Error ? err.message : "Erreur inconnue");
+    }
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -382,6 +438,77 @@ export function AdminContentFormPage() {
             </label>
           </div>
         </div>
+
+        {tmdbKind && hasTmdbKey && (
+          <div className="rounded-lg border border-slate-700/60 bg-slate-900/40 p-3">
+            <span className="mb-2 block text-sm text-slate-300">
+              Rechercher sur TMDb (remplit synopsis / note / affiche ci-dessous)
+            </span>
+            <div className="flex gap-2">
+              <input
+                value={tmdbQuery}
+                onChange={(e) => setTmdbQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleTmdbSearch();
+                  }
+                }}
+                placeholder={series || title || "Titre à chercher…"}
+                className={inputClass}
+              />
+              <button
+                type="button"
+                onClick={handleTmdbSearch}
+                disabled={isSearchingTmdb}
+                className="shrink-0 rounded-lg border border-cyan-400/40 px-3 py-2 text-sm text-cyan-300 transition-colors hover:bg-cyan-400/10 disabled:opacity-50"
+              >
+                {isSearchingTmdb ? "Recherche…" : "Rechercher"}
+              </button>
+            </div>
+
+            {tmdbError && <p className="mt-2 text-sm text-red-300">{tmdbError}</p>}
+
+            {confirmedTmdb && (
+              <p className="mt-2 text-sm text-emerald-300">
+                ✓ Rempli depuis TMDb : {confirmedTmdb.title}
+                {confirmedTmdb.year ? ` (${confirmedTmdb.year})` : ""}
+              </p>
+            )}
+
+            {tmdbResults.length > 0 && (
+              <ul className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {tmdbResults.map((result) => (
+                  <li key={result.tmdbId}>
+                    <button
+                      type="button"
+                      onClick={() => handleTmdbPick(result)}
+                      className="flex w-full items-center gap-2 rounded-lg border border-slate-700/60 bg-slate-900/70 p-2 text-left transition-colors hover:border-cyan-400/50"
+                    >
+                      {result.posterUrl ? (
+                        <img
+                          src={result.posterUrl}
+                          alt=""
+                          className="h-14 w-10 shrink-0 rounded object-cover"
+                        />
+                      ) : (
+                        <span className="h-14 w-10 shrink-0 rounded bg-slate-800" />
+                      )}
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm text-slate-100">
+                          {result.title}
+                        </span>
+                        <span className="block text-xs text-slate-500">
+                          {result.year ?? "?"}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
 
         <label className="block">
           <span className="mb-1 block text-sm text-slate-300">
