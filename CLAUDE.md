@@ -88,3 +88,6 @@ besoin de le relancer sauf pour re-seed une base vide.
    page protégée (le temps que la session Supabase se restaure de façon asynchrone).
 4. Bouton "Reprendre" (premier non-vu), virtualisation si listes longues (doc §7.3)
 5. Chronologies personnalisées drag & drop (dnd-kit) + partage communautaire (long terme)
+6. Suppression de compte en libre-service (droit RGPD) : pour l'instant, une demande par
+   email (voir `ConfidentialitePage.tsx`) est traitée à la main — remplacer par un vrai
+   bouton dans l'app (supprime `watched_items` + le compte Supabase Auth de l'utilisateur)
