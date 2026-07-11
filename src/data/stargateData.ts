@@ -9,17 +9,29 @@
 // EST l'ordre), et ajouter un épisode = insérer une ligne.
 // ---------------------------------------------------------------
 import type { ContentSummary } from "../types";
+import { seriesColorAt } from "../seriesPalette";
 
-// Clé de série → infos d'affichage, priorité de l'ordre "parution",
-// et couleur d'accent pour distinguer les séries dans la timeline
+// Clé de série → infos d'affichage + priorité de l'ordre "parution".
+// Pas de couleur ici : elle est déduite automatiquement de la POSITION
+// de la série dans cet objet (voir seriesColorFor plus bas). Ajouter
+// une série = ajouter une ligne { name, releaseGroup } ; sa couleur
+// (prise dans SERIES_PALETTE, seriesPalette.ts) suit toute seule, sans
+// jamais écrire de chiffre à la main — donc jamais de doublon possible.
 const SERIES = {
-  sg1: { name: "Stargate SG-1", releaseGroup: 0, color: "#60a5fa" }, // bleu
-  film: { name: "Film Stargate", releaseGroup: 1, color: "#e879f9" }, // fuchsia
-  atl: { name: "Stargate Atlantis", releaseGroup: 2, color: "#2dd4bf" }, // turquoise
-  uni: { name: "Stargate Universe", releaseGroup: 3, color: "#fb923c" }, // orange
+  sg1: { name: "Stargate SG-1", releaseGroup: 0 },
+  film: { name: "Film Stargate", releaseGroup: 1 },
+  atl: { name: "Stargate Atlantis", releaseGroup: 2 },
+  uni: { name: "Stargate Universe", releaseGroup: 3 },
 } as const;
 
 type SeriesKey = keyof typeof SERIES;
+
+const SERIES_KEYS = Object.keys(SERIES) as SeriesKey[];
+
+/** Couleur d'accent d'une série = sa position dans SERIES ci-dessus. */
+function seriesColorFor(key: SeriesKey): string {
+  return seriesColorAt(SERIES_KEYS.indexOf(key));
+}
 
 // Un tuple par entrée : [série, code, titre].
 // L'ORDRE DU TABLEAU = l'ordre de visionnage conseillé. C'est tout.
@@ -417,7 +429,7 @@ export const stargateSummaries: ContentSummary[] = CROSSOVER_ORDER.map(
       year: yearOf(key, code),
       type: key === "film" ? "film" : "serie",
       series: SERIES[key].name,
-      seriesColor: SERIES[key].color,
+      seriesColor: seriesColorFor(key),
       season,
       episode,
       orders: {

@@ -7,6 +7,11 @@
 // ⚠️ Piège Tailwind : les classes doivent être des chaînes COMPLÈTES.
 // Tailwind scanne le code source ; `text-${couleur}-300` ne serait
 // jamais détecté et la classe n'existerait pas dans le CSS final.
+//
+// À ne pas confondre avec seriesPalette.ts : ici, la couleur dépend du
+// TYPE de média (film/série/livre…), la même partout dans l'app. Là-bas,
+// la couleur dépend de la SOUS-SÉRIE au sein d'une saga (ex: SG-1 vs
+// Atlantis). Les deux palettes sont choisies pour ne jamais se ressembler.
 // ---------------------------------------------------------------
 import type { MediaType } from "./types";
 
