@@ -75,7 +75,16 @@ besoin de le relancer sauf pour re-seed une base vide.
 
 1. ~~**TMDb**~~ ✅ fait (vérifié le 09/07/2026 : épisodes SG-1/Atlantis, saisons Universe, films)
 2. ~~**Supabase**~~ ✅ fait (11/07/2026 : auth + progression + sagas/contenus en base, RLS activée)
-3. **Interface d'admin** : gérer sagas/contenus/defaultSort à la main (Corentin y tient) — inclut
-   la gestion des sous-types de média (série animée, bd, comics, jeu vidéo, déjà dans `MediaType`)
+3. ~~**Interface d'admin**~~ ✅ fait (11/07/2026) : CRUD sagas + contenus derrière `/admin`
+   (`RequireAuth` — connecté = accès, pas de rôle séparé). Pages : `AdminHomePage`,
+   `AdminSagaFormPage` (saga + sa liste de contenus), `AdminContentFormPage` (un contenu,
+   summary+details fusionnés). Couleur de série suggérée automatiquement via
+   `seriesPalette.ts` ; id slug suggéré via `utils/slugify.ts`, verrouillé après création ;
+   insertion dans l'ordre via nombres décimaux (`orders`), pas de drag & drop (roadmap #4/5).
+   ⚠️ Piège corrigé au passage : `fetchContentDetails` ne doit JAMAIS servir à préremplir un
+   formulaire d'édition (elle a une logique de repli TMDb/générique) — `fetchContentForAdmin`
+   fait une lecture brute dédiée. Piège #2 corrigé : `AuthContext` expose maintenant
+   `isLoading` — sans lui, `RequireAuth` redirigeait à tort vers /login au rechargement d'une
+   page protégée (le temps que la session Supabase se restaure de façon asynchrone).
 4. Bouton "Reprendre" (premier non-vu), virtualisation si listes longues (doc §7.3)
 5. Chronologies personnalisées drag & drop (dnd-kit) + partage communautaire (long terme)

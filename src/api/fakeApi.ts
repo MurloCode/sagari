@@ -6,7 +6,7 @@
 // ---------------------------------------------------------------
 import { supabase } from "./supabaseClient";
 import { fetchTmdbDetails, hasTmdbKey } from "./tmdb";
-import type { Saga, ContentSummary, ContentDetails } from "../types";
+import type { Saga, ContentSummary, ContentDetails, MediaType, SortMode } from "../types";
 
 function toSaga(row: any): Saga {
   return {
@@ -131,4 +131,168 @@ export async function fetchContentDetails(id: string): Promise<ContentDetails> {
     posterColor: "#334155",
     platforms: [],
   };
+}
+
+// ---------------------------------------------------------------
+// ÉCRITURE (interface d'admin) — au-delà de ce point, tout exige un
+// utilisateur connecté (policies RLS : voir supabase/schema.sql).
+// ---------------------------------------------------------------
+
+/** Traduit une erreur Postgres brute en message compréhensible. Code
+ *  23505 = violation de contrainte UNIQUE (id déjà pris). */
+function toFriendlyError(error: { code?: string; message: string }): Error {
+  if (error.code === "23505") {
+    return new Error("Cet identifiant existe déjà — choisis-en un autre.");
+  }
+  return new Error(error.message);
+}
+
+export interface SagaInput {
+  id: string;
+  name: string;
+  description: string;
+  color: string;
+  defaultSort: SortMode | null;
+}
+
+function sagaColumns(input: Omit<SagaInput, "id">) {
+  return {
+    name: input.name,
+    description: input.description,
+    color: input.color,
+    default_sort: input.defaultSort,
+  };
+}
+
+export async function createSaga(input: SagaInput): Promise<void> {
+  const { error } = await supabase
+    .from("sagas")
+    .insert({ id: input.id, ...sagaColumns(input) });
+  if (error) throw toFriendlyError(error);
+}
+
+export async function updateSaga(
+  id: string,
+  input: Omit<SagaInput, "id">
+): Promise<void> {
+  const { error } = await supabase.from("sagas").update(sagaColumns(input)).eq("id", id);
+  if (error) throw toFriendlyError(error);
+}
+
+/** Supprime la saga ET tout son contenu (cascade en base, cf. schema.sql).
+ *  IRRÉVERSIBLE : l'appelant doit confirmer avant d'appeler ceci. */
+export async function deleteSaga(id: string): Promise<void> {
+  const { error } = await supabase.from("sagas").delete().eq("id", id);
+  if (error) throw error;
+}
+
+/** Nombre de contenus par saga (liste des sagas de l'admin). */
+export async function fetchContentCounts(): Promise<Record<string, number>> {
+  const { data, error } = await supabase.from("contents").select("saga_id");
+  if (error) throw error;
+  const counts: Record<string, number> = {};
+  for (const row of data) {
+    counts[row.saga_id] = (counts[row.saga_id] ?? 0) + 1;
+  }
+  return counts;
+}
+
+/**
+ * Forme "à plat" d'un contenu utilisée par l'admin : fusionne
+ * ContentSummary + ContentDetails (une seule ligne en base, cf.
+ * supabase/schema.sql), avec des `null` explicites plutôt que des
+ * `undefined` — plus pratique pour des champs de formulaire contrôlés.
+ */
+export interface ContentInput {
+  id: string;
+  sagaId: string;
+  title: string;
+  year: number;
+  type: MediaType;
+  series: string | null;
+  season: number | null;
+  episode: number | null;
+  seriesColor: string | null;
+  orders: { release: number; chronological: number; recommended: number };
+  synopsis: string | null;
+  rating: number | null;
+  posterColor: string;
+  posterUrl: string | null;
+  platforms: string[];
+}
+
+/**
+ * Lecture BRUTE d'un contenu pour le formulaire d'édition admin — à ne
+ * JAMAIS remplacer par fetchContentDetails, qui elle applique la
+ * priorité DB → TMDb → repli générique. Pré-remplir un formulaire avec
+ * du texte TMDb ou de repli, puis l'enregistrer tel quel, écrirait ce
+ * texte fabriqué dans la base et casserait la détection "pas encore
+ * enrichi" (qui teste synopsis IS NULL).
+ */
+export async function fetchContentForAdmin(id: string): Promise<ContentInput | null> {
+  const { data, error } = await supabase.from("contents").select("*").eq("id", id).maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  return {
+    id: data.id,
+    sagaId: data.saga_id,
+    title: data.title,
+    year: data.year,
+    type: data.type,
+    series: data.series,
+    season: data.season,
+    episode: data.episode,
+    seriesColor: data.series_color,
+    orders: data.orders,
+    synopsis: data.synopsis,
+    rating: data.rating,
+    posterColor: data.poster_color,
+    posterUrl: data.poster_url,
+    platforms: data.platforms ?? [],
+  };
+}
+
+function contentColumns(input: Omit<ContentInput, "id" | "sagaId">) {
+  return {
+    title: input.title,
+    year: input.year,
+    type: input.type,
+    series: input.series,
+    season: input.season,
+    episode: input.episode,
+    series_color: input.seriesColor,
+    orders: input.orders,
+    synopsis: input.synopsis,
+    rating: input.rating,
+    // NOT NULL en base (défaut "#334155") : jamais de chaîne vide.
+    poster_color: input.posterColor || "#334155",
+    poster_url: input.posterUrl,
+    platforms: input.platforms,
+  };
+}
+
+export async function createContent(input: ContentInput): Promise<void> {
+  const { error } = await supabase.from("contents").insert({
+    id: input.id,
+    saga_id: input.sagaId,
+    ...contentColumns(input),
+  });
+  if (error) throw toFriendlyError(error);
+}
+
+/** sagaId n'est volontairement PAS modifiable ici : le formulaire admin
+ *  ne propose pas de déplacer un contenu d'une saga à une autre. */
+export async function updateContent(
+  id: string,
+  input: Omit<ContentInput, "id" | "sagaId">
+): Promise<void> {
+  const { error } = await supabase.from("contents").update(contentColumns(input)).eq("id", id);
+  if (error) throw toFriendlyError(error);
+}
+
+/** Supprime aussi la progression des utilisateurs sur ce contenu
+ *  (cascade en base). IRRÉVERSIBLE : à confirmer avant d'appeler ceci. */
+export async function deleteContent(id: string): Promise<void> {
+  const { error } = await supabase.from("contents").delete().eq("id", id);
+  if (error) throw error;
 }

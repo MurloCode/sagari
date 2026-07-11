@@ -29,6 +29,12 @@ export interface User {
 
 interface AuthContextValue {
   user: User | null; // null = invité
+  /** true tant que la session n'a pas encore été restaurée depuis le
+   *  navigateur — le temps que Supabase réponde (INITIAL_SESSION).
+   *  Le header peut ignorer ce flag (léger flash acceptable), mais une
+   *  route protégée (RequireAuth) DOIT l'attendre : sinon `user` vaut
+   *  encore `null` par défaut et on redirige à tort vers /login. */
+  isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
 }
@@ -46,6 +52,7 @@ function toUser(supabaseUser: SupabaseUser): User {
  *  ce que le composant enveloppe. */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   // onAuthStateChange informe IMMÉDIATEMENT de la session existante
   // (événement "INITIAL_SESSION"), puis à chaque connexion/déconnexion/
@@ -55,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ? toUser(session.user) : null);
+      setIsLoading(false); // même le premier événement (INITIAL_SESSION) compte
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -87,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

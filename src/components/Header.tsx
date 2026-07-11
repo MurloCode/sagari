@@ -24,6 +24,12 @@ export function Header() {
             </span>
             {user.name}
           </span>
+          <Link
+            to="/admin"
+            className="rounded-full border border-slate-700 px-3 py-1 text-sm text-slate-400 transition-colors hover:border-slate-500 hover:text-slate-200"
+          >
+            Admin
+          </Link>
           <button
             onClick={logout}
             className="rounded-full border border-slate-700 px-3 py-1 text-sm text-slate-400 transition-colors hover:border-slate-500 hover:text-slate-200"
