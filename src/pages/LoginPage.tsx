@@ -88,7 +88,8 @@ export function LoginPage() {
       </form>
 
       <p className="mt-4 text-xs text-slate-500">
-        Démo : n'importe quel email + mot de passe de 4 caractères minimum.
+        Première connexion ? Ton compte est créé automatiquement (mot de
+        passe de 6 caractères minimum).
       </p>
     </div>
   );

@@ -7,15 +7,19 @@
 // Solution : le CONTEXT. Un Provider en haut de l'arbre fournit la
 // valeur ; n'importe quel composant descendant la lit avec un hook.
 //
-// Le jour de Supabase : seuls login() et logout() changeront ici.
+// Backé par Supabase Auth (plus de fakeLogin) : la session est gérée
+// par la librairie elle-même (stockée dans le navigateur), on se
+// contente d'écouter ses changements avec onAuthStateChange.
 // ---------------------------------------------------------------
 import {
   createContext,
   useContext,
+  useEffect,
   useState,
   type ReactNode,
 } from "react";
-import { fakeLogin } from "../api/fakeApi";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
+import { supabase } from "../api/supabaseClient";
 
 export interface User {
   id: string;
@@ -33,27 +37,53 @@ interface AuthContextValue {
 // (on s'en sert pour détecter un oubli, voir useAuth plus bas).
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const STORAGE_KEY = "sagari-user";
+function toUser(supabaseUser: SupabaseUser): User {
+  const email = supabaseUser.email ?? "";
+  return { id: supabaseUser.id, name: email.split("@")[0], email };
+}
 
 /** À placer tout en haut de l'app (voir App.tsx). `children` = tout
  *  ce que le composant enveloppe. */
 export function AuthProvider({ children }: { children: ReactNode }) {
-  // Session persistée : si l'utilisateur était connecté, on le retrouve
-  // au rechargement de la page (comme un vrai cookie de session).
-  const [user, setUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : null;
-  });
+  const [user, setUser] = useState<User | null>(null);
+
+  // onAuthStateChange informe IMMÉDIATEMENT de la session existante
+  // (événement "INITIAL_SESSION"), puis à chaque connexion/déconnexion/
+  // rafraîchissement de jeton — un seul listener suffit pour tout gérer.
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ? toUser(session.user) : null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   async function login(email: string, password: string) {
-    const loggedUser = await fakeLogin(email, password); // peut throw
-    setUser(loggedUser);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(loggedUser));
+    const { data: signInData } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (signInData.session) return; // succès, onAuthStateChange met `user` à jour
+
+    // Échec de connexion : le cas le plus courant est un compte qui
+    // n'existe pas encore (garde l'UX d'un seul formulaire, comme
+    // avant). Par sécurité anti-énumération, Supabase ne dit JAMAIS
+    // explicitement "cet email existe déjà" : si signUp échoue à créer
+    // une session, c'est soit un mot de passe incorrect sur un compte
+    // existant, soit une confirmation par email en attente.
+    const { data: signUpData, error: signUpError } =
+      await supabase.auth.signUp({ email, password });
+    if (signUpError) throw new Error(signUpError.message);
+    if (!signUpData.session) {
+      throw new Error(
+        "Connexion impossible : mot de passe incorrect, ou vérifie ta boîte mail pour confirmer le compte."
+      );
+    }
   }
 
   function logout() {
-    setUser(null);
-    localStorage.removeItem(STORAGE_KEY);
+    void supabase.auth.signOut(); // onAuthStateChange remettra `user` à null
   }
 
   return (

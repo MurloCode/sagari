@@ -74,7 +74,7 @@ const FILM_QUERIES: Record<string, string> = {
  *  - film     → /search/movie
  */
 export async function fetchTmdbDetails(
-  summary: ContentSummary
+  summary: Pick<ContentSummary, "id" | "title" | "series" | "season" | "episode">
 ): Promise<ContentDetails> {
   // Cache d'abord : déjà vu → réponse immédiate, zéro réseau
   const cached = detailsCache.get(summary.id);

@@ -4,9 +4,16 @@
 // TypeScript signale ensuite en rouge tous les endroits à adapter.
 // ---------------------------------------------------------------
 
-/** Les types de médias gérés. En ajouter un ici (ex: "comic") suffira
- *  à le faire exister partout — TS montrera où le gérer. */
-export type MediaType = "film" | "serie" | "livre";
+/** Les types de médias gérés. En ajouter un ici suffit à le faire
+ *  exister partout — TS montrera où le gérer (ex: mediaConfig.ts). */
+export type MediaType =
+  | "film"
+  | "serie"
+  | "serie-animee"
+  | "livre"
+  | "bd"
+  | "comics"
+  | "jeu-video";
 
 /** Une saga / un univers narratif (Star Wars, Le Seigneur des Anneaux…) */
 export interface Saga {

@@ -1,92 +1,121 @@
 // ---------------------------------------------------------------
-// FAUSSE API — simule les 2 endpoints de la doc §7.1.
-// Nouveaux endpoints pour le multi-sagas : liste des sagas,
-// contenus d'UNE saga, et résumé d'un contenu précis.
+// API — parle à Supabase (tables sagas/contents, cf. supabase/schema.sql).
+// Le nom "fakeApi" reste par habitude de lecture du code (voir
+// CLAUDE.md) mais ce n'est plus une fausse API : les données viennent
+// vraiment de la base.
 // ---------------------------------------------------------------
-import { sagas, summaries, details } from "../data/sagaData";
+import { supabase } from "./supabaseClient";
 import { fetchTmdbDetails, hasTmdbKey } from "./tmdb";
 import type { Saga, ContentSummary, ContentDetails } from "../types";
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function toSaga(row: any): Saga {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    color: row.color,
+    defaultSort: row.default_sort ?? undefined,
+  };
 }
+
+function toSummary(row: any): ContentSummary {
+  return {
+    id: row.id,
+    sagaId: row.saga_id,
+    title: row.title,
+    year: row.year,
+    type: row.type,
+    series: row.series ?? undefined,
+    season: row.season ?? undefined,
+    episode: row.episode ?? undefined,
+    seriesColor: row.series_color ?? undefined,
+    orders: row.orders,
+  };
+}
+
+const SUMMARY_COLUMNS =
+  "id, saga_id, title, year, type, series, season, episode, series_color, orders";
 
 /** Liste des sagas disponibles (écran d'accueil). */
 export async function fetchSagas(): Promise<Saga[]> {
-  await delay(200);
-  return sagas;
+  const { data, error } = await supabase.from("sagas").select("*");
+  if (error) throw error;
+  return data.map(toSaga);
 }
 
 /** Une saga précise (nom, couleur, tri par défaut…). */
 export async function fetchSaga(id: string): Promise<Saga | null> {
-  await delay(150);
-  return sagas.find((s) => s.id === id) ?? null;
+  const { data, error } = await supabase
+    .from("sagas")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? toSaga(data) : null;
 }
 
 /**
  * Endpoint NIVEAU 1 (léger) : tous les contenus d'UNE saga.
- * .filter() côté "serveur" : le client ne reçoit que ce qui le concerne.
+ * On ne sélectionne QUE les colonnes résumé — synopsis/rating/poster
+ * restent en base, chargés seulement par fetchContentDetails.
  */
 export async function fetchSagaSummaries(
   sagaId: string
 ): Promise<ContentSummary[]> {
-  await delay(300);
-  return summaries.filter((s) => s.sagaId === sagaId);
+  const { data, error } = await supabase
+    .from("contents")
+    .select(SUMMARY_COLUMNS)
+    .eq("saga_id", sagaId);
+  if (error) throw error;
+  return data.map(toSummary);
 }
 
 /** Résumé d'un seul contenu (utilisé par la fiche détail). */
 export async function fetchContentSummary(
   id: string
 ): Promise<ContentSummary | null> {
-  await delay(200);
-  return summaries.find((s) => s.id === id) ?? null;
-}
-
-/**
- * Fausse authentification : accepte n'importe quel email avec un mot
- * de passe d'au moins 4 caractères. Avec Supabase, cette fonction
- * deviendra un vrai appel réseau — signature identique.
- */
-export async function fakeLogin(
-  email: string,
-  password: string
-): Promise<{ id: string; name: string; email: string }> {
-  await delay(600);
-  if (!email.includes("@")) {
-    throw new Error("Adresse email invalide");
-  }
-  if (password.length < 4) {
-    throw new Error("Mot de passe trop court (4 caractères minimum)");
-  }
-  return {
-    id: email.toLowerCase(),
-    name: email.split("@")[0],
-    email,
-  };
+  const { data, error } = await supabase
+    .from("contents")
+    .select(SUMMARY_COLUMNS)
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? toSummary(data) : null;
 }
 
 /**
  * Endpoint NIVEAU 2 (enrichissement) — ordre de priorité :
- *  1. fiche écrite à la main dans nos données (Star Wars, exemples…)
+ *  1. fiche déjà enrichie en base (écrite à la main ou pré-remplie)
  *  2. TMDb, si la clé API est configurée (épisodes Stargate & co)
  *  3. fiche générique de repli — JAMAIS d'erreur bloquante (doc §7.2)
- * (La panne simulée des débuts a été retirée : le réseau réel de TMDb
- * fournit désormais de vraies conditions d'échec à gérer.)
  */
 export async function fetchContentDetails(id: string): Promise<ContentDetails> {
-  // 1. Fiche locale écrite à la main ?
-  const local = details[id];
-  if (local) {
-    await delay(600); // latence simulée, comme avant
-    return local;
+  const { data: row, error } = await supabase
+    .from("contents")
+    .select(
+      "id, title, series, season, episode, synopsis, rating, poster_color, poster_url, platforms"
+    )
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw error;
+
+  // 1. Fiche déjà enrichie en base ?
+  if (row?.synopsis) {
+    return {
+      id: row.id,
+      synopsis: row.synopsis,
+      rating: row.rating,
+      posterColor: row.poster_color,
+      posterUrl: row.poster_url ?? undefined,
+      platforms: row.platforms ?? [],
+    };
   }
 
   // 2. TMDb — le try/catch protège : toute erreur (réseau coupé,
   // contenu introuvable, quota) bascule sur le repli au lieu de casser.
-  const summary = summaries.find((s) => s.id === id);
-  if (summary && hasTmdbKey) {
+  if (row && hasTmdbKey) {
     try {
-      return await fetchTmdbDetails(summary);
+      return await fetchTmdbDetails(row);
     } catch (err) {
       console.warn("Enrichissement TMDb impossible :", err);
     }

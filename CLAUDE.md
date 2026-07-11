@@ -37,7 +37,7 @@ src/
   data/stargateData.ts 281 entrées GÉNÉRÉES depuis des tuples (l'index = l'ordre)
   api/fakeApi.ts      fausse API (latence simulée) — SEUL fichier à changer pour Supabase/TMDb
   auth/AuthContext.tsx Context React, faux login (email + mdp ≥ 4 car.)
-  hooks/useWatched.ts  checklist par utilisateur, localStorage
+  hooks/useWatched.ts  checklist par utilisateur, table Supabase watched_items
   utils/format.ts      formatEpisodeCode etc.
   components/          Header, Timeline (le gros morceau), ContentCard, SortSelector,
                        MediaTypeFilter, DemoTimeline (landing)
@@ -52,20 +52,30 @@ Conventions établies (à respecter) :
 - Immutabilité stricte des Set/objets de state
 - saison/épisode = champs numériques (`season`, `episode`), jamais dans le titre
 
-## État : mock + TMDb branché (aucun backend)
+## État : Supabase branché (vraie auth + vraie base)
 
 `npm run dev` → http://localhost:5173. Vérifier avec `npm run build` (tsc strict).
 
 TMDb fonctionne (clé dans `.env`, non versionnée) : `src/api/tmdb.ts` enrichit
 épisodes/saisons/films à la volée, avec cache mémoire et repli gracieux.
-Les fiches écrites à la main dans `sagaData.ts` gardent la priorité sur TMDb.
-Note : la clé est visible côté navigateur (normal en front pur) — on la
-déplacera derrière Supabase (Edge Function) quand le backend arrivera.
+
+Backend réel depuis le 11/07/2026 : `src/api/supabaseClient.ts` instancie le
+client (URL + clé anon dans `.env`, non versionné). Schéma dans
+`supabase/schema.sql` (tables `sagas`/`contents`/`watched_items`, RLS
+activée). `src/api/fakeApi.ts` (nom conservé par habitude de lecture, mais
+plus "fake" du tout) interroge `contents` : priorité à une fiche déjà
+enrichie en base, sinon TMDb en direct, sinon repli générique — même logique
+qu'avant, la source a juste changé. `AuthContext.tsx` utilise
+`supabase.auth` (connexion = inscription automatique si le compte n'existe
+pas encore). `scripts/seed.ts` a migré les données mock (sagaData.ts +
+stargateData.ts, 296 contenus) vers la vraie base — script one-shot, pas
+besoin de le relancer sauf pour re-seed une base vide.
 
 ## Feuille de route (ordre suggéré)
 
 1. ~~**TMDb**~~ ✅ fait (vérifié le 09/07/2026 : épisodes SG-1/Atlantis, saisons Universe, films)
-2. **Supabase** : vraie auth + progression en base (ne toucher que fakeApi/AuthContext/useWatched)
-3. **Interface d'admin** : gérer sagas/contenus/defaultSort à la main (Corentin y tient)
+2. ~~**Supabase**~~ ✅ fait (11/07/2026 : auth + progression + sagas/contenus en base, RLS activée)
+3. **Interface d'admin** : gérer sagas/contenus/defaultSort à la main (Corentin y tient) — inclut
+   la gestion des sous-types de média (série animée, bd, comics, jeu vidéo, déjà dans `MediaType`)
 4. Bouton "Reprendre" (premier non-vu), virtualisation si listes longues (doc §7.3)
 5. Chronologies personnalisées drag & drop (dnd-kit) + partage communautaire (long terme)
