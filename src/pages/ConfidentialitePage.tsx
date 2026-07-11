@@ -99,12 +99,19 @@ export function ConfidentialitePage() {
         <p>
           Conformément au RGPD, tu disposes d'un droit d'accès, de
           rectification, de suppression et de portabilité de tes données.
+          Pour les exercer, écris à{" "}
+          <a
+            href="mailto:marillier.io+sagari@gmail.com"
+            className="text-cyan-300 underline underline-offset-2 hover:text-cyan-200"
+          >
+            marillier.io+sagari@gmail.com
+          </a>
+          .
         </p>
         <TodoNotice>
-          adresse de contact pour exercer ces droits — et prévoir un moyen
-          concret de répondre à une demande de suppression, aucune
-          fonctionnalité en libre-service n'existe encore dans l'app pour
-          supprimer son propre compte.
+          aucune fonctionnalité en libre-service n'existe encore dans l'app
+          pour supprimer soi-même son compte — une demande par email est
+          traitée manuellement en attendant.
         </TodoNotice>
       </section>
     </div>

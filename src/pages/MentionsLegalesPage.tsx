@@ -17,9 +17,15 @@ export function MentionsLegalesPage() {
           Sagari est édité par Corentin Marillier, à titre personnel (projet
           non professionnel — l'adresse postale de l'éditeur n'est donc pas
           publiée, conformément à la LCEN pour les éditeurs non
-          professionnels).
+          professionnels). Contact :{" "}
+          <a
+            href="mailto:marillier.io+sagari@gmail.com"
+            className="text-cyan-300 underline underline-offset-2 hover:text-cyan-200"
+          >
+            marillier.io+sagari@gmail.com
+          </a>
+          .
         </p>
-        <TodoNotice>adresse de contact dédiée (en attendant, voir le lien GitHub en bas de page).</TodoNotice>
       </section>
 
       <section className="space-y-2">
@@ -60,7 +66,14 @@ export function MentionsLegalesPage() {
       <section className="space-y-2">
         <h2 className="text-base font-semibold text-slate-100">Contact</h2>
         <p>
-          Via{" "}
+          Par email :{" "}
+          <a
+            href="mailto:marillier.io+sagari@gmail.com"
+            className="text-cyan-300 underline underline-offset-2 hover:text-cyan-200"
+          >
+            marillier.io+sagari@gmail.com
+          </a>{" "}
+          ou via{" "}
           <a
             href="https://github.com/MurloCode"
             target="_blank"
@@ -71,7 +84,6 @@ export function MentionsLegalesPage() {
           </a>
           .
         </p>
-        <TodoNotice>adresse email de contact dédiée, à ajouter en complément.</TodoNotice>
       </section>
     </div>
   );
