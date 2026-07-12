@@ -77,9 +77,10 @@ export function SagaPage() {
     fetchSagaSummaries(sagaId)
       .then((data) => {
         setContents(data);
-        // Au départ, seuls les FILMS et SÉRIES sont visibles : les livres
-        // apparaissent comme des points — le cœur de ton idée !
-        setVisibleTypes(new Set(["film", "serie"]));
+        // Au départ, seul l'AUDIOVISUEL est visible (films, séries,
+        // séries animées) : les livres/BD/jeux apparaissent comme des
+        // points — le cœur de ton idée !
+        setVisibleTypes(new Set(["film", "serie", "serie-animee"]));
         setForcedVisible(new Set());
       })
       .finally(() => setIsLoading(false));
